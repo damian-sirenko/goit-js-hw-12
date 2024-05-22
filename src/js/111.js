@@ -2,27 +2,30 @@ import iziToast from 'izitoast';
 import 'izitoast/dist/css/iziToast.min.css';
 import SimpleLightbox from 'simplelightbox';
 import 'simplelightbox/dist/simple-lightbox.min.css';
-import { galleryMarkup } from './js/render-functions.js';
-import { searchingPhotosByQuery } from './js/pixabay-api.js';
+import { createGalleryItemMarkup } from './js/render-functions.js';
+import { fetchPhotosByQuery } from './js/pixabay-api.js';
 
 const searchFormEl = document.querySelector('.search-form');
-let galleryEl = document.querySelector('.gallery');
 const loaderEl = document.querySelector('.loader');
-const loadMoreBtnEl = document.querySelector('.load-more-btn');
+let galleryEl = document.querySelector('.gallery');
+const moreBtnEl = document.querySelector('.more-btn');
 
 let totalPages = 0;
-let searchQuery = '';
-let currentPage = 1;
-const per_page = 15;
+let imageCurrentPage = 1;
+let per_page = 15;
+let searchQuery = null;
 
 const handleSubmit = async event => {
   event.preventDefault();
+
   const form = event.currentTarget;
+
   searchQuery = form.elements.search.value.trim();
 
   galleryEl.innerHTML = '';
   loaderEl.classList.remove('is-hidden');
-  currentPage = 1;
+
+  imageCurrentPage = 1;
 
   if (searchQuery === '') {
     iziToast.show({
@@ -33,37 +36,34 @@ const handleSubmit = async event => {
     });
     form.reset();
     loaderEl.classList.add('is-hidden');
-
     return;
   }
 
   try {
-    const { total, hits } = await searchingPhotosByQuery(
+    const { total, hits } = await fetchPhotosByQuery(
       searchQuery,
-      currentPage
+      imageCurrentPage
     );
 
     if (total === 0) {
       iziToast.show({
-        message:
-          'Sorry, there are no images matching your search query. Please try again!',
+        message: 'Sorry, there are no images for this query',
         position: 'topRight',
         timeout: 2000,
         color: 'red',
       });
       loaderEl.classList.add('is-hidden');
-      loadMoreBtnEl.classList.add('btn-is-hidden');
-
+      moreBtnEl.classList.add('btn-is-hidden');
       return;
     }
 
-    galleryEl.insertAdjacentHTML('beforeend', galleryMarkup(hits));
-    loadMoreBtnEl.classList.remove('btn-is-hidden');
+    galleryEl.insertAdjacentHTML('beforeend', createGalleryItemMarkup(hits));
+    moreBtnEl.classList.remove('btn-is-hidden');
 
     totalPages = Math.ceil(total / per_page);
 
     if (hits.length < per_page) {
-      loadMoreBtnEl.classList.add('btn-is-hidden');
+      moreBtnEl.classList.add('btn-is-hidden');
       iziToast.show({
         message: "We're sorry, but you've reached the end of search results.",
         position: 'topRight',
@@ -71,9 +71,10 @@ const handleSubmit = async event => {
         color: 'red',
       });
     } else {
-      loadMoreBtnEl.classList.remove('btn-is-hidden');
+      moreBtnEl.classList.remove('btn-is-hidden');
     }
     lightbox.refresh();
+    // smoothScroll();
   } catch {
     iziToast.show({
       message: 'An error occurred while fetching images',
@@ -88,31 +89,31 @@ const handleSubmit = async event => {
 };
 
 const smoothScroll = () => {
-  const lastItemEl = galleryEl.querySelector('.gallery-item:last-child');
+  const lastItemEl = galleryEl.querySelector('li.gallery-item:last-child');
   const imageItemHeight = lastItemEl.getBoundingClientRect().height;
   const scrollHeight = imageItemHeight * 2;
 
   window.scrollBy({
-    top: 1000,
+    top: 730,
     left: 0,
     behavior: 'smooth',
   });
 };
 
-async function onLoadMorePressed(event) {
+async function handleMoreBtn(event) {
   try {
-    currentPage += 1;
+    imageCurrentPage += 1;
     loaderEl.classList.remove('is-hidden');
 
-    const { hits } = await searchingPhotosByQuery(searchQuery, currentPage);
+    const { hits } = await fetchPhotosByQuery(searchQuery, imageCurrentPage);
 
-    galleryEl.insertAdjacentHTML('beforeend', galleryMarkup(hits));
+    galleryEl.insertAdjacentHTML('beforeend', createGalleryItemMarkup(hits));
 
     lightbox.refresh();
     smoothScroll();
 
-    if (currentPage >= totalPages) {
-      loadMoreBtnEl.classList.add('btn-is-hidden');
+    if (imageCurrentPage >= totalPages) {
+      moreBtnEl.classList.add('btn-is-hidden');
       iziToast.show({
         message: "We're sorry, but you've reached the end of search results.",
         position: 'topRight',
@@ -127,7 +128,7 @@ async function onLoadMorePressed(event) {
       timeout: 2000,
       color: 'red',
     });
-    loadMoreBtnEl.classList.add('btn-is-hidden');
+    moreBtnEl.classList.add('is-hidden');
   } finally {
     loaderEl.classList.add('is-hidden');
   }
@@ -138,6 +139,5 @@ const lightbox = new SimpleLightbox('.gallery a', {
   captionDelay: 250,
 });
 
-loadMoreBtnEl.addEventListener('click', onLoadMorePressed);
+moreBtnEl.addEventListener('click', handleMoreBtn);
 searchFormEl.addEventListener('submit', handleSubmit);
-
